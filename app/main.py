@@ -3,14 +3,16 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, Request, Response
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .auth import COOKIE_NAME, Auth
 from .config import Settings
 from .db import Database
 from .web import WEB_DIR, load_page
-from .uploads import UploadService
+from .uploads import UploadService, now_iso
+from .processor import MediaProcessor
+from .worker import JobWorker
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -18,19 +20,30 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     db = Database(settings.data_dir / "allfilethingy.sqlite3")
     auth = Auth(settings.app_password, settings.app_secret, settings.cookie_max_age)
     uploads = UploadService(db, settings)
+    processor = MediaProcessor(db, settings)
+    worker = JobWorker(db, processor, settings)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         (settings.data_dir / "jobs").mkdir(exist_ok=True)
         db.initialize()
-        yield
+        worker.recover()
+        worker.start()
+        if any(True for _ in _queued_jobs(db)):
+            worker.notify()
+        try:
+            yield
+        finally:
+            await worker.stop()
 
     application = FastAPI(title="AllFileThingy", docs_url=None, redoc_url=None, lifespan=lifespan)
     application.state.settings = settings
     application.state.db = db
     application.state.auth = auth
     application.state.uploads = uploads
+    application.state.processor = processor
+    application.state.worker = worker
     application.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
     @application.get("/healthz")
@@ -129,7 +142,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         uploads.delete(job_id)
         return Response(status_code=204)
 
+    @application.post("/api/jobs/{job_id}/start", status_code=202)
+    async def start_job(job_id: str, request: Request) -> dict:
+        auth.require(request)
+        job = uploads.get_job(job_id)
+        if job["state"] not in {"ready", "failed"}:
+            return JSONResponse({"detail": "Job is not ready to start"}, status_code=409)
+        if any(file["uploaded_size"] != file["expected_size"] for file in job["files"]):
+            return JSONResponse({"detail": "Every clip must finish uploading"}, status_code=409)
+        with db.connect() as conn:
+            changed = conn.execute(
+                """UPDATE jobs SET state='queued',phase='Waiting for processor',progress=0,error=NULL,updated_at=?
+                   WHERE id=? AND state IN ('ready','failed')""",
+                (now_iso(), job["id"]),
+            ).rowcount
+        if not changed:
+            return JSONResponse({"detail": "Job was already started"}, status_code=409)
+        worker.notify()
+        return uploads.get_job(job["id"])
+
+    @application.get("/api/jobs/{job_id}/download")
+    async def download(job_id: str, request: Request) -> Response:
+        auth.require(request)
+        job = uploads.get_job(job_id)
+        if job["state"] != "completed":
+            return JSONResponse({"detail": "Output is not ready"}, status_code=409)
+        output = settings.data_dir / "jobs" / job["id"] / "output.mp4"
+        if not output.is_file():
+            return JSONResponse({"detail": "Output file is missing"}, status_code=410)
+        return FileResponse(
+            output,
+            media_type="video/mp4",
+            filename="AllFileThingy-output.mp4",
+        )
+
     return application
 
 
 app = create_app()
+
+
+def _queued_jobs(db: Database):
+    with db.connect() as conn:
+        yield from conn.execute("SELECT id FROM jobs WHERE state='queued' LIMIT 1").fetchall()

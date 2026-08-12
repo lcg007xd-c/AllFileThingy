@@ -26,6 +26,8 @@ class Settings:
     max_job_bytes: int = 10 * 1024**3
     min_free_disk_bytes: int = 1024**3
     output_retention_hours: int = 24
+    ffmpeg_bin: str = "ffmpeg"
+    ffprobe_bin: str = "ffprobe"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -46,5 +48,6 @@ class Settings:
             max_job_bytes=_positive_int("MAX_JOB_BYTES", 10 * 1024**3),
             min_free_disk_bytes=_positive_int("MIN_FREE_DISK_BYTES", 1024**3),
             output_retention_hours=_positive_int("OUTPUT_RETENTION_HOURS", 24),
+            ffmpeg_bin=os.getenv("FFMPEG_BIN", "ffmpeg"),
+            ffprobe_bin=os.getenv("FFPROBE_BIN", "ffprobe"),
         )
-

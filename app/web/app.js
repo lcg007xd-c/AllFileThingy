@@ -12,6 +12,8 @@ const progressBar = document.querySelector('#progress-bar');
 const percent = document.querySelector('#percent');
 const phase = document.querySelector('#phase');
 const statusMessage = document.querySelector('#status-message');
+const download = document.querySelector('#download');
+const retry = document.querySelector('#retry');
 let files = [];
 let job = null;
 let active = false;
@@ -134,7 +136,10 @@ uploadButton.addEventListener('click', async () => {
       await uploadFile(files[index], job.files[index], index, offsets);
     }
     job = await api(`/api/jobs/${job.id}`);
-    phase.textContent = 'Ready'; statusMessage.textContent = 'Every clip is uploaded and ready to stitch.'; setProgress(100);
+    phase.textContent = 'Ready'; statusMessage.textContent = 'Uploads complete. Starting the stitcher…';
+    job = await api(`/api/jobs/${job.id}/start`, {method: 'POST'});
+    active = false;
+    await pollJob();
   } catch (reason) {
     errorBox.textContent = reason.message;
     if (!pickerView.hidden) active = false;
@@ -149,6 +154,49 @@ document.querySelector('#start-over').addEventListener('click', async () => {
   localStorage.removeItem('allfilethingy_job'); location.reload();
 });
 
-document.querySelector('#logout').onclick = async () => { await api('/api/logout', {method:'POST'}); location.href='/login'; };
-window.addEventListener('beforeunload', (event) => { if (active && job?.state !== 'ready') { event.preventDefault(); event.returnValue = ''; } });
+async function pollJob() {
+  if (!job) return;
+  pickerView.hidden = true; statusView.hidden = false;
+  while (['queued', 'processing'].includes(job.state)) {
+    phase.textContent = job.phase;
+    statusMessage.textContent = job.state === 'queued' ? 'Waiting for the processor…' : 'Keep this page open or come back later.';
+    setProgress(job.progress || 0);
+    await wait(1500);
+    job = await api(`/api/jobs/${job.id}`);
+  }
+  phase.textContent = job.phase;
+  setProgress(job.progress || 0);
+  if (job.state === 'completed') {
+    statusMessage.textContent = 'Your compatible MP4 is ready.';
+    download.href = `/api/jobs/${job.id}/download`; download.hidden = false;
+    retry.hidden = true;
+  } else if (job.state === 'failed') {
+    statusMessage.textContent = job.error || 'Processing failed. You can retry or start over.';
+    retry.hidden = false; download.hidden = true;
+  } else if (job.state === 'ready') {
+    statusMessage.textContent = 'Uploads are ready to process.';
+    retry.textContent = 'Start stitching'; retry.hidden = false;
+  } else if (job.state === 'uploading') {
+    statusMessage.textContent = 'This upload was interrupted. Select the same clips again or delete this job and start over.';
+  }
+}
 
+retry.addEventListener('click', async () => {
+  retry.disabled = true;
+  try { job = await api(`/api/jobs/${job.id}/start`, {method: 'POST'}); await pollJob(); }
+  catch (reason) { statusMessage.textContent = reason.message; }
+  finally { retry.disabled = false; }
+});
+
+async function restoreJob() {
+  const saved = localStorage.getItem('allfilethingy_job');
+  if (!saved) return;
+  try { job = await api(`/api/jobs/${saved}`); await pollJob(); }
+  catch (_) { localStorage.removeItem('allfilethingy_job'); }
+}
+
+document.querySelector('#logout').onclick = async () => { await api('/api/logout', {method:'POST'}); location.href='/login'; };
+window.addEventListener('beforeunload', (event) => {
+  if (active || ['queued', 'processing'].includes(job?.state)) { event.preventDefault(); event.returnValue = ''; }
+});
+restoreJob();
