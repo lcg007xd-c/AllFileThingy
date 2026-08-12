@@ -243,6 +243,7 @@ class MediaProcessor:
                 "-c:v", "libx264", "-preset", "fast", "-crf", "20",
                 "-pix_fmt", "yuv420p", "-r", "30",
                 "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+                "-t", f"{duration:.6f}",
                 "-metadata:s:v:0", "rotate=0", "-movflags", "+faststart",
                 str(output_path),
             ]
@@ -258,12 +259,18 @@ class MediaProcessor:
         )
         output_path = job_dir / "output.mp4"
         self._run_ffmpeg(
-            ["-f", "concat", "-safe", "1", "-i", str(concat_path),
-             "-c", "copy", "-movflags", "+faststart", str(output_path)],
+            [
+                "-f", "concat", "-safe", "1", "-i", str(concat_path),
+                "-vf", "fps=30,setpts=PTS-STARTPTS,setsar=1,format=yuv420p",
+                "-af", "aresample=48000:async=1:first_pts=0,asetpts=PTS-STARTPTS",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+                "-pix_fmt", "yuv420p", "-r", "30",
+                "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+                "-movflags", "+faststart", str(output_path),
+            ],
             sum(durations), "Finalizing MP4", 90, 9, callback,
         )
         if not output_path.is_file() or output_path.stat().st_size == 0:
             raise ProcessingError("FFmpeg did not produce an output file")
         callback("Completed", 100)
         return output_path
-

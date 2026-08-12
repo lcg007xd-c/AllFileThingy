@@ -19,12 +19,14 @@ class JobWorker:
         self.task: asyncio.Task | None = None
 
     def recover(self) -> None:
+        expires = datetime.now(UTC) + timedelta(hours=self.settings.output_retention_hours)
         with self.db.connect() as conn:
             conn.execute(
                 """UPDATE jobs SET state='failed',phase='Interrupted',progress=0,
-                   error='Processing was interrupted by a restart. Start the job again to retry.',updated_at=?
+                   error='Processing was interrupted by a restart. Start the job again to retry.',
+                   expires_at=?,updated_at=?
                    WHERE state='processing'""",
-                (now_iso(),),
+                (expires.isoformat(), now_iso()),
             )
 
     def start(self) -> None:
@@ -85,11 +87,12 @@ class JobWorker:
                     (output.stat().st_size, expires.isoformat(), now_iso(), job_id),
                 )
         except Exception as exc:
+            expires = datetime.now(UTC) + timedelta(hours=self.settings.output_retention_hours)
             with self.db.connect() as conn:
                 conn.execute(
-                    """UPDATE jobs SET state='failed',phase='Failed',error=?,updated_at=?
+                    """UPDATE jobs SET state='failed',phase='Failed',error=?,expires_at=?,updated_at=?
                        WHERE id=?""",
-                    (safe_processing_error(exc), now_iso(), job_id),
+                    (safe_processing_error(exc), expires.isoformat(), now_iso(), job_id),
                 )
 
     async def run(self) -> None:
@@ -103,4 +106,3 @@ class JobWorker:
                 await asyncio.wait_for(self.wake.wait(), timeout=2)
             except asyncio.TimeoutError:
                 pass
-

@@ -28,6 +28,7 @@ class Settings:
     output_retention_hours: int = 24
     ffmpeg_bin: str = "ffmpeg"
     ffprobe_bin: str = "ffprobe"
+    cleanup_interval_seconds: int = 60 * 60
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -50,4 +51,5 @@ class Settings:
             output_retention_hours=_positive_int("OUTPUT_RETENTION_HOURS", 24),
             ffmpeg_bin=os.getenv("FFMPEG_BIN", "ffmpeg"),
             ffprobe_bin=os.getenv("FFPROBE_BIN", "ffprobe"),
+            cleanup_interval_seconds=_positive_int("CLEANUP_INTERVAL_SECONDS", 60 * 60),
         )

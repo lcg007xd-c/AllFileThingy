@@ -182,6 +182,8 @@ class UploadService:
                         raise HTTPException(status_code=413, detail="Chunk exceeds 8 MiB")
                     if received > remaining:
                         raise HTTPException(status_code=413, detail="Chunk exceeds declared file size")
+                    if shutil.disk_usage(self.settings.data_dir).free - len(data) < self.settings.min_free_disk_bytes:
+                        raise HTTPException(status_code=507, detail="Not enough free disk space")
                     temp.write(data)
                 temp.flush()
                 os.fsync(temp.fileno())
@@ -263,4 +265,3 @@ class UploadService:
                 raise HTTPException(status_code=409, detail="A processing job cannot be deleted")
             conn.execute("DELETE FROM jobs WHERE id=?", (job_id,))
         shutil.rmtree(self._job_dir(job_id), ignore_errors=True)
-

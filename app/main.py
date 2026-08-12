@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 
 from .auth import COOKIE_NAME, Auth
+from .cleanup import CleanupService
 from .config import Settings
 from .db import Database
 from .web import WEB_DIR, load_page
@@ -22,6 +23,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     uploads = UploadService(db, settings)
     processor = MediaProcessor(db, settings)
     worker = JobWorker(db, processor, settings)
+    cleanup = CleanupService(db, settings.data_dir / "jobs", settings.cleanup_interval_seconds)
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -29,13 +31,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         (settings.data_dir / "jobs").mkdir(exist_ok=True)
         db.initialize()
         worker.recover()
+        cleanup.cleanup_expired()
         worker.start()
+        cleanup.start()
         if any(True for _ in _queued_jobs(db)):
             worker.notify()
         try:
             yield
         finally:
             await worker.stop()
+            await cleanup.stop()
 
     application = FastAPI(title="AllFileThingy", docs_url=None, redoc_url=None, lifespan=lifespan)
     application.state.settings = settings
@@ -44,7 +49,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.state.uploads = uploads
     application.state.processor = processor
     application.state.worker = worker
+    application.state.cleanup = cleanup
     application.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
+
+    @application.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data:; media-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        )
+        if request.url.scheme == "https":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     @application.get("/healthz")
     async def health() -> dict[str, str]:
@@ -121,10 +144,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         file_id: str,
         request: Request,
         upload_offset: int = Header(alias="Upload-Offset"),
+        content_length: int | None = Header(default=None, alias="Content-Length"),
     ) -> dict:
         auth.require(request)
         if request.headers.get("content-type", "").split(";", 1)[0].lower() != "application/octet-stream":
             return JSONResponse({"detail": "Chunks must use application/octet-stream"}, status_code=415)
+        if content_length is not None and content_length > 8 * 1024 * 1024:
+            return JSONResponse({"detail": "Chunk exceeds 8 MiB"}, status_code=413)
         return await uploads.append_chunk(job_id, file_id, upload_offset, request.stream())
 
     @application.put("/api/jobs/{job_id}/order")

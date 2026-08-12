@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from fractions import Fraction
 
 import pytest
 
@@ -59,7 +60,6 @@ def test_stitches_mixed_clips_with_silence(authed_client, tmp_path):
     audio = next(stream for stream in probe["streams"] if stream["codec_type"] == "audio")
     assert (video["width"], video["height"]) == (320, 240)
     assert video["codec_name"] == "h264" and video["pix_fmt"] == "yuv420p"
-    assert abs(float(eval(video["avg_frame_rate"].replace("/", "/"))) - 30) < 0.1
+    assert Fraction(video["r_frame_rate"]) == 30
     assert audio["codec_name"] == "aac" and audio["sample_rate"] == "48000" and audio["channels"] == 2
     assert float(probe["format"]["duration"]) > 1.2
-
