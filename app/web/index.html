@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>AllFileThingy</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar"><strong>AllFileThingy</strong><button id="logout" class="quiet">Log out</button></header>
+  <main class="card workspace">
+    <h1>Stitch your videos</h1>
+    <p class="muted">Choose clips, put them in order, and get one compatible MP4.</p>
+    <p>Upload tools are being prepared.</p>
+  </main>
+  <script>document.querySelector('#logout').onclick=async()=>{await fetch('/api/logout',{method:'POST'});location.href='/login'};</script>
+</body>
+</html>
+

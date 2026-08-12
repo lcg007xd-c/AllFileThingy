@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Login · AllFileThingy</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="centered">
+  <main class="card auth-card">
+    <div class="mark" aria-hidden="true">AF</div>
+    <h1>AllFileThingy</h1>
+    <p class="muted">Your private video stitcher.</p>
+    <form id="login-form">
+      <label for="password">App password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+      <p id="error" class="error" role="alert"></p>
+      <button type="submit">Unlock</button>
+    </form>
+  </main>
+  <script src="/static/login.js" defer></script>
+</body>
+</html>
+

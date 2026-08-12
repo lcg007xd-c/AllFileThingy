@@ -1,0 +1,2 @@
+"""AllFileThingy application package."""
+
