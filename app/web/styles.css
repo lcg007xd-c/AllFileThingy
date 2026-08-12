@@ -17,4 +17,21 @@ button:disabled { opacity:.55; }
 .error { color:var(--danger); min-height:1.3em; }
 .topbar { max-width:720px; margin:auto; min-height:64px; display:flex; align-items:center; justify-content:space-between; }
 .quiet { min-height:40px; background:transparent; color:var(--muted); }
-
+.picker { margin-top:24px; border:2px dashed #a9b7c8; border-radius:16px; padding:26px 18px; display:flex; flex-direction:column; align-items:center; gap:5px; cursor:pointer; }
+.picker-icon { font-size:30px; color:var(--accent); }
+.visually-hidden { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+.clip-list,.upload-list { list-style:none; padding:0; margin:18px 0; display:grid; gap:10px; }
+.clip { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; border:1px solid #e0e6ed; border-radius:12px; }
+.clip div:first-child { min-width:0; display:grid; gap:3px; }
+.clip strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.order-controls { display:flex; gap:6px; flex:none; }
+.icon-button { min-width:42px; min-height:42px; padding:0; background:#eaf0f8; color:var(--ink); }
+.primary { width:100%; }
+.secondary { width:100%; color:var(--ink); background:#e7edf5; margin-top:16px; }
+.totals { text-align:right; margin:6px 2px 16px; }
+.status-head { display:flex; justify-content:space-between; gap:10px; margin:24px 0 8px; }
+.progress { height:12px; overflow:hidden; background:#e4eaf1; border-radius:99px; }
+.progress span { display:block; height:100%; width:0; background:var(--accent); border-radius:inherit; transition:width .2s ease; }
+.progress.small { height:7px; }
+.upload-list .status-head { margin:12px 0 6px; font-size:.9rem; }
+@media (max-width:520px) { body { padding-left:10px; padding-right:10px; } .workspace { margin:8px auto; padding:20px 16px; } }

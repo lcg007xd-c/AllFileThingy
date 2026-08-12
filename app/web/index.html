@@ -11,9 +11,26 @@
   <main class="card workspace">
     <h1>Stitch your videos</h1>
     <p class="muted">Choose clips, put them in order, and get one compatible MP4.</p>
-    <p>Upload tools are being prepared.</p>
+    <section id="picker-view">
+      <label class="picker" for="files">
+        <span class="picker-icon">＋</span>
+        <strong>Choose videos</strong>
+        <span class="muted">MP4, MOV, M4V and other videos</span>
+      </label>
+      <input id="files" class="visually-hidden" type="file" accept="video/*,.mov,.m4v" multiple>
+      <ol id="clip-list" class="clip-list" aria-label="Selected clip order"></ol>
+      <div id="totals" class="totals muted"></div>
+      <p id="error" class="error" role="alert"></p>
+      <button id="upload" class="primary" disabled>Upload clips</button>
+    </section>
+    <section id="status-view" hidden>
+      <div class="status-head"><strong id="phase">Uploading</strong><span id="percent">0%</span></div>
+      <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><span id="progress-bar"></span></div>
+      <ol id="upload-list" class="upload-list"></ol>
+      <p id="status-message" class="muted" aria-live="polite"></p>
+      <button id="start-over" class="secondary">Delete and start over</button>
+    </section>
   </main>
-  <script>document.querySelector('#logout').onclick=async()=>{await fetch('/api/logout',{method:'POST'});location.href='/login'};</script>
+  <script src="/static/app.js" defer></script>
 </body>
 </html>
-
